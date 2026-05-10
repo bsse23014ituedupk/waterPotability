@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Water Potability Prediction — AI-powered water safety analysis using XGBoost ML model with WHO reference ranges.">
+  <title>AquaGuard — Water Potability Prediction</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background animation -->
+  <div class="bg-animation">
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">💧</div>
+        <div>
+          <h1 class="logo-title">AquaGuard</h1>
+          <p class="logo-subtitle">Water Potability AI</p>
+        </div>
+      </div>
+      <nav class="header-nav">
+        <a href="/docs" class="nav-link" target="_blank">API Docs</a>
+        <a href="https://github.com" class="nav-link" target="_blank">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+
+      <!-- Hero Section -->
+      <section class="hero">
+        <div class="hero-text">
+          <h2 class="hero-title">Is Your Water Safe to Drink?</h2>
+          <p class="hero-subtitle">
+            Enter your water quality measurements below. Our XGBoost ML model —
+            trained with anti-overfitting constraints and WHO-aligned thresholds —
+            delivers instant potability analysis.
+          </p>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <div class="stat-value">~73%</div>
+            <div class="stat-label">Test Accuracy</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">~0.80</div>
+            <div class="stat-label">ROC-AUC</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">9</div>
+            <div class="stat-label">Parameters</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main Layout: Form + Sidebar -->
+      <div class="layout">
+
+        <!-- Input Form -->
+        <section class="form-section glass-card">
+          <h3 class="section-title">
+            <span class="section-icon">🔬</span>
+            Water Quality Parameters
+          </h3>
+          <p class="section-desc">Enter values from your water quality report. Fields marked * are required.</p>
+
+          <form id="predictionForm">
+
+            <div class="form-grid">
+
+              <!-- pH -->
+              <div class="form-group" id="group-ph">
+                <label class="form-label" for="ph">
+                  pH Level <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="pH measures acidity/alkalinity. WHO safe range: 6.5–8.5. Below 6.5 may cause corrosion; above 8.5 may cause bitter taste.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="ph" name="ph"
+                    step="0.01" min="0" max="14" value="7.0"
+                    placeholder="0.0 – 14.0" required>
+                  <span class="input-unit">pH</span>
+                </div>
+                <div class="range-hint">WHO safe: 6.5 – 8.5</div>
+                <div class="error-msg" id="error-ph"></div>
+              </div>
+
+              <!-- Hardness -->
+              <div class="form-group" id="group-hardness">
+                <label class="form-label" for="Hardness">
+                  Hardness <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Calcium and magnesium concentration. Hard water (>200 mg/L) may cause scale; soft water (<60 mg/L) may be corrosive.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Hardness" name="Hardness"
+                    step="0.1" min="0" value="196.0"
+                    placeholder="e.g. 196" required>
+                  <span class="input-unit">mg/L</span>
+                </div>
+                <div class="range-hint">Typical: 60 – 300 mg/L</div>
+                <div class="error-msg" id="error-Hardness"></div>
+              </div>
+
+              <!-- Solids -->
+              <div class="form-group" id="group-solids">
+                <label class="form-label" for="Solids">
+                  Total Dissolved Solids <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Total dissolved solids (TDS) measures all dissolved substances. WHO limit: 500 ppm for drinking water.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Solids" name="Solids"
+                    step="1" min="0" value="20791"
+                    placeholder="e.g. 20791" required>
+                  <span class="input-unit">ppm</span>
+                </div>
+                <div class="range-hint">WHO limit: 500 ppm</div>
+                <div class="error-msg" id="error-Solids"></div>
+              </div>
+
+              <!-- Chloramines -->
+              <div class="form-group" id="group-chloramines">
+                <label class="form-label" for="Chloramines">
+                  Chloramines <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Chloramines are used for water disinfection. Safe level: up to 4 ppm. Higher levels may cause health effects with prolonged exposure.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Chloramines" name="Chloramines"
+                    step="0.01" min="0" value="7.3"
+                    placeholder="e.g. 7.3" required>
+                  <span class="input-unit">ppm</span>
+                </div>
+                <div class="range-hint">WHO limit: 4 ppm</div>
+                <div class="error-msg" id="error-Chloramines"></div>
+              </div>
+
+              <!-- Sulfate -->
+              <div class="form-group" id="group-sulfate">
+                <label class="form-label" for="Sulfate">
+                  Sulfate <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Sulfate occurs naturally in water. WHO guideline: 250 mg/L. High levels can cause laxative effects.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Sulfate" name="Sulfate"
+                    step="0.1" min="0" value="368.0"
+                    placeholder="e.g. 368" required>
+                  <span class="input-unit">mg/L</span>
+                </div>
+                <div class="range-hint">WHO limit: 250 mg/L</div>
+                <div class="error-msg" id="error-Sulfate"></div>
+              </div>
+
+              <!-- Conductivity -->
+              <div class="form-group" id="group-conductivity">
+                <label class="form-label" for="Conductivity">
+                  Conductivity <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Electrical conductivity reflects dissolved ion concentration. WHO limit: 400 μS/cm for drinking water.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Conductivity" name="Conductivity"
+                    step="0.1" min="0" value="564.0"
+                    placeholder="e.g. 564" required>
+                  <span class="input-unit">μS/cm</span>
+                </div>
+                <div class="range-hint">WHO limit: 400 μS/cm</div>
+                <div class="error-msg" id="error-Conductivity"></div>
+              </div>
+
+              <!-- Organic Carbon -->
+              <div class="form-group" id="group-organic">
+                <label class="form-label" for="Organic_carbon">
+                  Organic Carbon <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Total organic carbon (TOC) indicates organic contamination. WHO limit: 2 ppm. Higher levels may indicate contamination or disinfection byproduct formation.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Organic_carbon" name="Organic_carbon"
+                    step="0.01" min="0" value="10.4"
+                    placeholder="e.g. 10.4" required>
+                  <span class="input-unit">ppm</span>
+                </div>
+                <div class="range-hint">WHO limit: 2 ppm</div>
+                <div class="error-msg" id="error-Organic_carbon"></div>
+              </div>
+
+              <!-- Trihalomethanes -->
+              <div class="form-group" id="group-thm">
+                <label class="form-label" for="Trihalomethanes">
+                  Trihalomethanes <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="THMs are disinfection byproducts formed when chlorine reacts with organic matter. WHO limit: 80 μg/L. Long-term exposure above limit is a cancer risk.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Trihalomethanes" name="Trihalomethanes"
+                    step="0.01" min="0" value="86.0"
+                    placeholder="e.g. 86" required>
+                  <span class="input-unit">μg/L</span>
+                </div>
+                <div class="range-hint">WHO limit: 80 μg/L</div>
+                <div class="error-msg" id="error-Trihalomethanes"></div>
+              </div>
+
+              <!-- Turbidity -->
+              <div class="form-group" id="group-turbidity">
+                <label class="form-label" for="Turbidity">
+                  Turbidity <span class="required">*</span>
+                  <span class="tooltip-trigger" data-tooltip="Turbidity measures water cloudiness caused by suspended particles. WHO limit: 5 NTU. High turbidity can shelter pathogens from disinfection.">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input class="form-input" type="number" id="Turbidity" name="Turbidity"
+                    step="0.01" min="0" value="2.96"
+                    placeholder="e.g. 2.96" required>
+                  <span class="input-unit">NTU</span>
+                </div>
+                <div class="range-hint">WHO limit: 5 NTU</div>
+                <div class="error-msg" id="error-Turbidity"></div>
+              </div>
+
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="predictBtn">
+                <span class="btn-icon">🔍</span>
+                <span class="btn-text">Analyse Water Sample</span>
+                <span class="btn-loader" id="btnLoader" style="display:none;">
+                  <span class="spinner"></span> Analysing...
+                </span>
+              </button>
+              <button type="button" class="btn btn-secondary" id="resetBtn">
+                ↺ Reset to Defaults
+              </button>
+            </div>
+
+          </form>
+        </section>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+
+          <!-- Result Card -->
+          <div class="result-card glass-card" id="resultCard" style="display:none;">
+            <div class="result-verdict" id="resultVerdict">
+              <div class="verdict-icon" id="verdictIcon"></div>
+              <div class="verdict-label" id="verdictLabel"></div>
+            </div>
+
+            <div class="result-details">
+              <div class="probability-section">
+                <div class="prob-label">Potability Probability</div>
+                <div class="prob-bar-container">
+                  <div class="prob-bar" id="probBar"></div>
+                  <div class="prob-value" id="probValue"></div>
+                </div>
+              </div>
+
+              <div class="result-meta">
+                <div class="meta-item">
+                  <span class="meta-label">Confidence</span>
+                  <span class="confidence-badge" id="confidenceBadge"></span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Threshold Used</span>
+                  <span class="meta-value" id="thresholdValue"></span>
+                </div>
+              </div>
+
+              <div class="result-interpretation" id="resultInterpretation"></div>
+            </div>
+          </div>
+
+          <!-- Error Card -->
+          <div class="error-card glass-card" id="errorCard" style="display:none;">
+            <div class="error-icon">⚠️</div>
+            <div class="error-title">Prediction Error</div>
+            <div class="error-body" id="errorBody"></div>
+          </div>
+
+          <!-- WHO Reference Sidebar -->
+          <div class="who-card glass-card">
+            <h3 class="who-title">
+              <span>🌍</span> WHO Safe Ranges
+            </h3>
+            <div class="who-list">
+              <div class="who-item">
+                <span class="who-param">pH</span>
+                <span class="who-range">6.5 – 8.5</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Hardness</span>
+                <span class="who-range">&lt; 200 mg/L</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">TDS</span>
+                <span class="who-range">&lt; 500 ppm</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Chloramines</span>
+                <span class="who-range">&lt; 4 ppm</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Sulfate</span>
+                <span class="who-range">&lt; 250 mg/L</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Conductivity</span>
+                <span class="who-range">&lt; 400 μS/cm</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Organic Carbon</span>
+                <span class="who-range">&lt; 2 ppm</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Trihalomethanes</span>
+                <span class="who-range">&lt; 80 μg/L</span>
+              </div>
+              <div class="who-item">
+                <span class="who-param">Turbidity</span>
+                <span class="who-range">&lt; 5 NTU</span>
+              </div>
+            </div>
+            <p class="who-note">
+              * WHO Guidelines for Drinking Water Quality (4th Ed.)
+            </p>
+          </div>
+
+          <!-- Model Info -->
+          <div class="model-card glass-card">
+            <h3 class="model-title">🤖 Model Info</h3>
+            <div class="model-items">
+              <div class="model-item">
+                <span class="model-key">Algorithm</span>
+                <span class="model-val">XGBoost</span>
+              </div>
+              <div class="model-item">
+                <span class="model-key">Tuning</span>
+                <span class="model-val">Optuna (100 trials)</span>
+              </div>
+              <div class="model-item">
+                <span class="model-key">Imbalance</span>
+                <span class="model-val">Conservative SMOTE</span>
+              </div>
+              <div class="model-item">
+                <span class="model-key">Threshold</span>
+                <span class="model-val">Composite-optimised</span>
+              </div>
+              <div class="model-item">
+                <span class="model-key">Features</span>
+                <span class="model-val">9 raw + 5 engineered</span>
+              </div>
+            </div>
+            <div id="apiStatus" class="api-status">
+              <div class="status-dot" id="statusDot"></div>
+              <span id="statusText">Checking API...</span>
+            </div>
+          </div>
+
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>AquaGuard — Water Potability AI &nbsp;|&nbsp; Built with XGBoost + FastAPI + Optuna</p>
+    <p class="footer-disclaimer">
+      For educational purposes. Consult certified water quality laboratories for official assessments.
+    </p>
+  </footer>
+
+  <!-- Tooltip -->
+  <div class="tooltip-popup" id="tooltipPopup"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
