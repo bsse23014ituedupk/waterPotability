@@ -1,23 +1,11 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  water-potability-api:
+  water-potability:
     build: .
-    container_name: water-potability-api
     ports:
       - "8000:8000"
     volumes:
       - ./artifacts:/app/artifacts
-      - ./logs:/app/logs
-      - ./mlruns:/app/mlruns
-      - ./data:/app/data
     environment:
-      - PYTHONPATH=/app
-      - MLFLOW_TRACKING_URI=mlruns
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - PYTHONUNBUFFERED=1

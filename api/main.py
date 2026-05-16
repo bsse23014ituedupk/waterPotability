@@ -1,144 +1,100 @@
-"""
-FastAPI application entrypoint for the Water Potability Prediction API.
-
-Endpoints:
-    GET  /health   — Model health check and version info
-    POST /predict  — Single water sample potability prediction
-    GET  /ui       — Serves the web UI (mounted as StaticFiles)
-
-CORS is fully open (allow_origins=["*"]) for development.
-Restrict origins in production deployments.
-"""
+# Water Potability Prediction API
+# Accepts chemical readings and predicts if water is safe to drink
 
 import os
-
-import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-
-from api.middleware import LoggingMiddleware
-from api.predictor import WaterPotabilityPredictor
-from api.schemas import HealthResponse, PredictionResponse, WaterSample
-from src.config import CONFIG
-from src.utils.logger import get_logger
-
-logger = get_logger(__name__, "api.log")
-
-# ---------------------------------------------------------------------------
-# Application initialisation
-# ---------------------------------------------------------------------------
+import json
+import pandas as pd
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+import joblib
 
 app = FastAPI(
-    title="Water Potability Prediction API",
-    description=(
-        "Production-grade ML API for binary water safety classification. "
-        "Uses XGBoost with anti-overfitting constraints, conservative SMOTE, "
-        "and balanced threshold optimisation."
-    ),
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    title="Water Potability Classifier",
+    description="Predict whether a water sample is safe to drink based on chemical readings.",
 )
 
-# CORS — open for development; restrict in production
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-# Request/response logging
-app.add_middleware(LoggingMiddleware)
+# Load the trained model and its metadata
+MODEL_DIR = os.path.join(os.path.dirname(BASE_DIR), "artifacts", "models")
 
-# Serve web UI
-_ui_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ui")
-if os.path.isdir(_ui_dir):
-    app.mount("/ui", StaticFiles(directory=_ui_dir, html=True), name="ui")
+# Try new naming first, fall back to old naming for compatibility
+model_file = "best_model.joblib" if os.path.exists(os.path.join(MODEL_DIR, "best_model.joblib")) else "champion_model.joblib"
+info_file = "best_model_info.json" if os.path.exists(os.path.join(MODEL_DIR, "best_model_info.json")) else "champion_info.json"
 
-# Load model artifacts — fail fast at startup if artifacts are missing
-predictor: WaterPotabilityPredictor = None  # type: ignore
+model = joblib.load(os.path.join(MODEL_DIR, model_file))
 
+with open(os.path.join(MODEL_DIR, "feature_columns.json"), "r") as f:
+    FEATURE_COLUMNS = json.load(f)
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Load predictor artifacts when the API starts."""
-    global predictor
-    artifacts_dir = CONFIG.api.artifacts_dir
-    logger.info(f"Loading model artifacts from: {artifacts_dir}")
-    try:
-        predictor = WaterPotabilityPredictor(artifacts_dir=artifacts_dir)
-        logger.info("Model loaded successfully — API ready.")
-    except FileNotFoundError as e:
-        logger.error(f"Startup failed: {e}")
-        logger.error("Run 'python main.py --mode train' to generate artifacts first.")
-        # Allow API to start without model for /health endpoint
-        predictor = None
+with open(os.path.join(MODEL_DIR, info_file), "r") as f:
+    MODEL_INFO = json.load(f)
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-@app.get("/health", response_model=HealthResponse, tags=["health"])
-async def health_check() -> dict:
-    """
-    Return API health status and model information.
-
-    Returns 200 even if the model is not loaded, allowing health checks
-    to distinguish between "API up, no model" and "API down" states.
-    """
-    return {
-        "status": "healthy" if predictor is not None else "degraded — model not loaded",
-        "model_loaded": predictor is not None,
-        "model_version": predictor.model_version if predictor else "N/A",
-        "threshold": predictor.threshold if predictor else 0.0,
-    }
+class WaterSample(BaseModel):
+    """The 9 chemical readings we need from the user."""
+    ph: float = Field(..., ge=0, le=14, description="pH value (0-14)")
+    Hardness: float = Field(..., ge=0, description="Hardness (mg/L)")
+    Solids: float = Field(..., ge=0, description="Total Dissolved Solids (mg/L)")
+    Chloramines: float = Field(..., ge=0, description="Chloramines (mg/L)")
+    Sulfate: float = Field(..., ge=0, description="Sulfate (mg/L)")
+    Conductivity: float = Field(..., ge=0, description="Conductivity (uS/cm)")
+    Organic_carbon: float = Field(..., ge=0, description="Organic Carbon (mg/L)")
+    Trihalomethanes: float = Field(..., ge=0, description="Trihalomethanes (ppm)")
+    Turbidity: float = Field(..., ge=0, description="Turbidity (NTU)")
 
 
-@app.post("/predict", response_model=PredictionResponse, tags=["prediction"])
-async def predict(sample: WaterSample) -> dict:
-    """
-    Predict water potability for a single water sample.
-
-    Applies the full preprocessing pipeline (imputation, feature engineering,
-    scaling, feature selection) before inference.
-
-    Returns:
-        potability (0/1), probability, threshold used, interpretation, confidence.
-
-    Raises:
-        503 Service Unavailable: If model artifacts are not loaded.
-        500 Internal Server Error: For unexpected inference errors.
-    """
-    if predictor is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Model not loaded. Run 'python main.py --mode train' first.",
-        )
-    try:
-        result = predictor.predict(sample.model_dump())
-        logger.info(
-            f"Prediction: {result['interpretation']} | "
-            f"P={result['probability']:.4f} | "
-            f"confidence={result['confidence']}"
-        )
-        return result
-    except Exception as exc:
-        logger.error(f"Prediction error: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(exc))
+def preprocess_input(sample: dict) -> pd.DataFrame:
+    """Puts the input into the correct column order for the model."""
+    df = pd.DataFrame([sample])
+    df = df[FEATURE_COLUMNS]
+    return df
 
 
-# ---------------------------------------------------------------------------
-# Direct run
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "api.main:app",
-        host=CONFIG.api.host,
-        port=CONFIG.api.port,
-        reload=False,
-        log_level="info",
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Shows the web form where users can enter water readings."""
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "model_name": MODEL_INFO.get("display_name", "Unknown"),
+            "model_auc": MODEL_INFO.get("metrics", {}).get("roc_auc", 0),
+        },
     )
+
+
+@app.post("/predict")
+async def predict(sample: WaterSample):
+    """Takes in chemical readings and returns whether the water is safe."""
+    try:
+        sample_dict = sample.model_dump()
+        X = preprocess_input(sample_dict)
+
+        prediction = int(model.predict(X)[0])
+        probability = float(model.predict_proba(X)[0][1])
+
+        result = "Potable" if prediction == 1 else "Not Potable"
+        confidence = probability if prediction == 1 else (1 - probability)
+
+        return JSONResponse({
+            "prediction": prediction,
+            "result": result,
+            "confidence": round(confidence * 100, 2),
+            "probability_potable": round(probability * 100, 2),
+            "input": sample_dict,
+        })
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/health")
+async def health():
+    """Simple health check to verify the API is running."""
+    return {
+        "status": "healthy",
+        "model": MODEL_INFO.get("display_name", "Unknown"),
+    }
